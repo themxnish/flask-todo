@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    container_name: flask-todo-app
+    ports:
+      - "5000:5000"
+    volumes:
+      - todo-data:/app
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+
+volumes:
+  todo-data:
