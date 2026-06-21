@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "<dockerhub-username>/flask-todo"
+        DOCKER_IMAGE = "themxnish/flask-todo"
         DOCKER_TAG   = "build-${BUILD_NUMBER}"
         REGISTRY_CREDENTIAL = 'dockerhub-credentials'
     }
