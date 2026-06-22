@@ -33,7 +33,7 @@ pipeline {
             	/opt/sonar-scanner/bin/sonar-scanner \
               	-Dsonar.projectKey=flask-todo \
               	-Dsonar.sources=. \
-              	-Dsonar.host.url=http://192.168.172.189:9000 \
+              	-Dsonar.host.url=http://192.168.172.129:9000 \
               	-Dsonar.token=${SONAR_TOKEN}
 		"""
     		}
