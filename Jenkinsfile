@@ -2,9 +2,12 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = "themxnish/flask-todo"
-        DOCKER_TAG   = "build-${BUILD_NUMBER}"
-        REGISTRY_CREDENTIAL = 'dockerhub-credentials'
+        DOCKER_IMAGE          = "themxnish/flask-todo"
+        DOCKER_TAG            = "build-${BUILD_NUMBER}"
+        REGISTRY_CREDENTIAL   = 'dockerhub-credentials'
+        SONAR_TOKEN           = credentials('sonar-token')
+        KUBE_DEPLOYMENT       = 'flask-todo-deployment'
+        KUBE_CONTAINER        = 'flask-todo'
     }
 
     stages {
@@ -16,36 +19,31 @@ pipeline {
             }
         }
 
+        stage('SonarQube Analysis') {
+            steps {
+                sh """
+                    /opt/sonar-scanner/bin/sonar-scanner \
+                      -Dsonar.projectKey=flask-todo \
+                      -Dsonar.sources=. \
+                      -Dsonar.host.url=http://192.168.172.129:9000 \
+                      -Dsonar.token=${SONAR_TOKEN}
+                """
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
-                echo "Building image: ${DOCKER_IMAGE}:${DOCKER_TAG}"
                 sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
                 sh "docker tag ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
             }
         }
 
-	stage('SonarQube Analysis') {
-    		environment {
-        	SONAR_TOKEN = credentials('sonar-token')
-    	}
-    	steps {
-        	sh """
-            	/opt/sonar-scanner/bin/sonar-scanner \
-              	-Dsonar.projectKey=flask-todo \
-              	-Dsonar.sources=. \
-              	-Dsonar.host.url=http://192.168.172.129:9000 \
-              	-Dsonar.token=${SONAR_TOKEN}
-		"""
-    		}
-	}	
-
         stage('Run Tests') {
             steps {
-                echo 'Running tests inside container...'
                 sh """
                     docker run --rm \
                       ${DOCKER_IMAGE}:${DOCKER_TAG} \
-                      python -m pytest tests/ -v || echo 'No tests yet — skipping'
+                      python -m pytest tests/ -v
                 """
             }
         }
@@ -64,16 +62,29 @@ pipeline {
             }
         }
 
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh """
+                    kubectl set image deployment/${KUBE_DEPLOYMENT} \
+                      ${KUBE_CONTAINER}=${DOCKER_IMAGE}:${DOCKER_TAG} \
+                      --record
+
+                    kubectl rollout status deployment/${KUBE_DEPLOYMENT} \
+                      --timeout=120s
+                """
+            }
+        }
+
         stage('Cleanup') {
             steps {
                 sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
-                sh "docker rmi ${DOCKER_IMAGE}:latest || true"
             }
         }
     }
 
     post {
-        success { echo 'Pipeline succeeded!' }
-        failure { echo 'Pipeline failed — check logs above.' }
+        success { echo "Deployed ${DOCKER_IMAGE}:${DOCKER_TAG} to Kubernetes." }
+        failure { echo 'Pipeline failed. Rolling back...'
+                  sh 'kubectl rollout undo deployment/${KUBE_DEPLOYMENT} || true' }
     }
 }
