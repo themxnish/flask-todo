@@ -43,7 +43,7 @@ pipeline {
                 sh """
                     docker run --rm \
                       ${DOCKER_IMAGE}:${DOCKER_TAG} \
-                      python -m pytest tests/ -v
+                      python -m pytest test/ -v
                 """
             }
         }
